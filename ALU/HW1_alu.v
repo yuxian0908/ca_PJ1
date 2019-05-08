@@ -21,18 +21,18 @@ module alu(
       reg     [2:0]    inst_d1_r;
 
   /* ============================================ */
-      always@ (           )
+      always@ (posedge clk_p_i or negedge reset_n_i)
       begin
-          case()
-            3'b000:    ALU_d2_w = ;
-            3'b001:    ALU_d2_w = ;
-            3'b010:    ALU_d2_w = ;
-            3'b011:    ALU_d2_w = ;
-            3'b100:    ALU_d2_w = ;
-            3'b101:    ALU_d2_w = ;
-            3'b110:    ALU_d2_w = ;
-            3'b111:    ALU_d2_w = ;
-            default:   ALU_d2_w = ;
+          case(inst_i)
+            3'b000:    ALU_d2_w = {{8{data_a_i[7]}}, data_a_i} + {{8{data_b_i[7]}}, data_b_i};
+            3'b001:    ALU_d2_w = {{8{data_b_i[7]}}, data_b_i} + {{8{~data_a_i[7]}}, ~data_a_i} + 1;
+            3'b010:    ALU_d2_w = data_a_i * data_b_i;
+            3'b011:    ALU_d2_w = data_a_i & data_b_i;
+            3'b100:    ALU_d2_w = data_a_i ^ data_b_i;
+            3'b101:    ALU_d2_w = data_a_i[7] ? {{8{~data_a_i[7]}}, ~data_a_i} + 1 : data_a_i;
+            3'b110:    ALU_d2_w = (data_a_i+data_b_i)>>1;
+            3'b111:    ALU_d2_w = data_b_i%data_a_i;
+            default:   ALU_d2_w = {{8{data_a_i[7]}}, data_a_i} + {{8{data_b_i[7]}}, data_b_i};
           endcase
       end
 
