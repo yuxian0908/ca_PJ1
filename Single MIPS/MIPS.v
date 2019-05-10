@@ -68,9 +68,13 @@ module SingleCycle_MIPS(
 
     // sign-extended signal        
     wire[31:0]      SignExtend;
+    
     // MUX output signals          
-    wire            MUX_RegDST, MUX_MemToReg, 
-                    MUX_Src, MUX_Branch, MUX_Jump;
+    wire[4:0]       MUX_RegDST;
+    wire[31:0]      MUX_MemToReg; 
+    wire[31:0]      MUX_Src;
+    wire[31:0]      MUX_Branch;
+    wire[31:0]      MUX_Jump;
 
     // registers input signals     
     wire[4:0]       Reg_R1, Reg_R2, Reg_W, WriteData;
@@ -83,9 +87,9 @@ module SingleCycle_MIPS(
     wire            CEN, OEN, WEN;
     
     // program counter/address     
-    reg[31:0]       PCin;
+    reg[31:0]       PCin, PC_4;
     reg[31:0]       PCnext, JumpAddr, BranchAddr;
-    reg[31:0]       IR_addr, RF_writedata;
+    reg[31:0]       IR_addr;
 
 //==== combinational part =================================
 
@@ -123,10 +127,20 @@ module SingleCycle_MIPS(
 
 
 
+// MUX
+    wire    branch_decided  = (OpCode==BEQ & ALUzero);
+    assign  MUX_RegDST      = RegDst ? IR[15:11] : IR[20:16];
+    assign  MUX_MemToReg    = MemtoReg ? ReadDataMem : ALUresult; 
+    assign  MUX_Src         = ALUSrc ? SignExtend : ReadData2;
+    assign  MUX_Branch      = branch_decided ? BranchAddr : PC_4;
+    assign  MUX_Jump        = Jump ? JumpAddr : MUX_Branch;
+
+
+
 // alu
     assign SignExtend = { {16{IR[15]}}, IR[15:0] };
     assign ALUin1 = ReadData1;
-    assign ALUin2 = ALUSrc ? SignExtend : ReadData2;
+    assign ALUin2 = MUX_Src;
 
     always @(ALUctrl or ALUin1 or ALUin2)
     begin
@@ -147,16 +161,13 @@ module SingleCycle_MIPS(
 // pc
     always @(*)
     begin
-        PCin        = IR_addr;
-        PCnext      = PCin+4;
-        JumpAddr    = { PCnext[31:28], IR[25:0]<<2 };
-        BranchAddr  = PCnext+({{16{IR[15]}}, IR[15:0]}<<2);
-        if(Jump)
-            PCnext = JumpAddr;
-        else if(OpCode==R & FnCode==6'b001000) // jr
+        PCin                = IR_addr;
+        PC_4                = PCin+4;
+        JumpAddr            = { PCnext[31:28], IR[25:0]<<2 };
+        BranchAddr          = PCnext+({{16{IR[15]}}, IR[15:0]}<<2);
+        PCnext              = MUX_Jump;
+        if(OpCode==R & FnCode==6'b001000) // jr
             PCnext = ReadData1;
-        else if(OpCode==BEQ & ALUzero)
-            PCnext = BranchAddr;
     end
         
 
@@ -165,24 +176,17 @@ module SingleCycle_MIPS(
 // register file
     assign Reg_R1 = IR[25:21]; // rs
     assign Reg_R2 = IR[20:16]; // rt
-    assign Reg_W = RegDst ? IR[15:11] : IR[20:16]; // rd or rt
+    assign Reg_W = MUX_RegDST; // rd or rt
     assign ReadData1 = Register[Reg_R1];
 	assign ReadData2 = Register[Reg_R2];
 
 
 // mem
     assign A = ALUresult[8:2];
-    
     assign CEN = (MemRead | MemWrite) ? 0 : 1;
     assign OEN = MemRead ? 0 : 1;
     assign WEN = MemRead ? 1 : 0;
-    always @(*)
-    begin
-        if(MemRead)
-            RF_writedata <= ReadDataMem;
-        else
-            RF_writedata <= ALUresult;
-    end
+    assign RF_writedata = MUX_MemToReg;
 
 
 
@@ -204,7 +208,6 @@ module SingleCycle_MIPS(
     integer i;
     always @ (posedge clk or negedge rst_n)
 	begin
-        // Register[Reg_W] <= RegWrite ? WriteData : Register[Reg_W];
         if(~rst_n)
         begin
             for(i=0; i<32; i=i+1)
@@ -214,10 +217,8 @@ module SingleCycle_MIPS(
         end
         else
         begin
-            if(OpCode==LW & RegWrite)
-                Register[Reg_W] <= ReadDataMem;
-            else if(RegWrite)
-                Register[Reg_W] <= ALUresult;
+            if(RegWrite)
+                Register[Reg_W] <= MUX_MemToReg;
         end
 	end
 
