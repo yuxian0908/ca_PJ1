@@ -145,7 +145,13 @@ module SingleCycle_MIPS(
         PCin        = IR_addr;
         PCnext      = PCin+4;
         JumpAddr    = { PCnext[31:28], IR[25:0]<<2 };
-        BranchAddr  = { {16{IR[15]}}, IR[15:0]};
+        BranchAddr  = PCnext+({{16{IR[15]}}, IR[15:0]}<<2);
+        if(Jump)
+            PCnext = JumpAddr;
+        else if(OpCode==R & FnCode==6'b001000) // jr
+            PCnext = ReadData1;
+        else if(OpCode==BEQ & ALUzero)
+            PCnext = BranchAddr;
     end
         
 
@@ -162,7 +168,7 @@ module SingleCycle_MIPS(
 // mem
     assign A = ALUresult[8:2];
     
-    assign CEN = OpCode==LW ? 0 : 1;
+    assign CEN = (OpCode==LW | OpCode==SW) ? 0 : 1;
     assign OEN = OpCode==LW ? 0 : 1;
     assign WEN = OpCode==LW ? 1 : 0;
     always @(*)
@@ -184,6 +190,9 @@ module SingleCycle_MIPS(
             IR_addr <= 0;
         else 
             IR_addr <= PCnext;
+
+        if(OpCode==JAL)
+            Register[31] = PCin+4;
 	end
 
 // register file
@@ -200,10 +209,11 @@ module SingleCycle_MIPS(
         end
         else
         begin
-            $monitor("m: IR=%b, ReadData1=%b, ReadData2=%b, Register[Reg_W]=%b",IR, ReadData1, ReadData2, Register[8]);
-            if(OpCode==LW)
+            // $monitor("m: IR=%b, Reg_R1=%d, ALUin1=%d, Reg_R2=%d, ALUin2=%d", IR, Reg_R1, ALUin1, Reg_R2, ALUin2);
+            // $display("d: IR=%b, Reg_R1=%d, ALUin1=%d, Reg_R2=%d, ALUin2=%d, \nRF_writedata=%d, Reg_W=%d", IR, Reg_R1, ALUin1, Reg_R2, ALUin2,RF_writedata, Reg_W);
+            if(OpCode==LW & RegWrite)
                 Register[Reg_W] <= ReadDataMem;
-            else
+            else if(RegWrite)
                 Register[Reg_W] <= ALUresult;
         end
 	end
