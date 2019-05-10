@@ -57,6 +57,7 @@ module SingleCycle_MIPS(
     // control signals             
     wire            RegDST, ALUSrc, MemToReg, RegWrite, MemRead, MemWrite, Branch, Jump;
     wire[1:0]       ALUOp;
+
     // ALU control signals         
     wire[3:0]       ALUctrl;
     // ALU input signals           
@@ -64,19 +65,23 @@ module SingleCycle_MIPS(
     // ALU output signals          
     reg[31:0]       ALUresult;
     reg             ALUzero;
+
     // sign-extended signal        
     wire[31:0]      SignExtend;
     // MUX output signals          
     wire            MUX_RegDST, MUX_MemToReg, 
                     MUX_Src, MUX_Branch, MUX_Jump;
+
     // registers input signals     
     wire[4:0]       Reg_R1, Reg_R2, Reg_W, WriteData;
     // registers                   
     reg[31:0]       Register[31:0];
-    // registers out    put signals    
+    // registers output signals    
     wire[31:0]      ReadData1;
+
     // data memory contral signals 
     wire            CEN, OEN, WEN;
+    
     // program counter/address     
     reg[31:0]       PCin;
     reg[31:0]       PCnext, JumpAddr, BranchAddr;
@@ -168,12 +173,12 @@ module SingleCycle_MIPS(
 // mem
     assign A = ALUresult[8:2];
     
-    assign CEN = (OpCode==LW | OpCode==SW) ? 0 : 1;
-    assign OEN = OpCode==LW ? 0 : 1;
-    assign WEN = OpCode==LW ? 1 : 0;
+    assign CEN = (MemRead | MemWrite) ? 0 : 1;
+    assign OEN = MemRead ? 0 : 1;
+    assign WEN = MemRead ? 1 : 0;
     always @(*)
     begin
-        if(OpCode==LW)
+        if(MemRead)
             RF_writedata <= ReadDataMem;
         else
             RF_writedata <= ALUresult;
@@ -209,8 +214,6 @@ module SingleCycle_MIPS(
         end
         else
         begin
-            // $monitor("m: IR=%b, Reg_R1=%d, ALUin1=%d, Reg_R2=%d, ALUin2=%d", IR, Reg_R1, ALUin1, Reg_R2, ALUin2);
-            // $display("d: IR=%b, Reg_R1=%d, ALUin1=%d, Reg_R2=%d, ALUin2=%d, \nRF_writedata=%d, Reg_W=%d", IR, Reg_R1, ALUin1, Reg_R2, ALUin2,RF_writedata, Reg_W);
             if(OpCode==LW & RegWrite)
                 Register[Reg_W] <= ReadDataMem;
             else if(RegWrite)
